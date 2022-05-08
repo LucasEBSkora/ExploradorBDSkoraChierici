@@ -14,11 +14,10 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Vector;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.swing.DefaultComboBoxModel;
+import java.sql.DatabaseMetaData;
 import javax.swing.JOptionPane;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
 
 /**
  *
@@ -33,7 +32,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
 
     private boolean conectado = false;
 
-    public boolean carregarDadosConexao() {
+    private boolean carregarDadosConexao() {
 
         try {
             boolean sucesso = true;
@@ -67,7 +66,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         return false;
     }
 
-    public boolean escreverDadosConexao() {
+    private boolean escreverDadosConexao() {
         try {
             FileWriter arquivoDados = new FileWriter(CAMINHO_ARQUIVO_CONEXAO);
             String SGBD = SelecionadorSGBD.getSelectedItem().toString();
@@ -82,6 +81,51 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             return false;
         }
         return true;
+    }
+
+    private void fecharConexao() {
+        try {
+            conectado = false;
+            if (stmt != null && !stmt.isClosed()) {
+                stmt.close();
+            }
+            if (con != null && !con.isClosed()) {
+                con.close();
+            }
+        } catch (SQLException sqle) {
+        }
+    }
+
+    private void gerarArvore() {
+        DefaultMutableTreeNode top = new DefaultMutableTreeNode(CampoBD.getText(), true);
+        DefaultMutableTreeNode tabelas = new DefaultMutableTreeNode("tabelas", true);
+        DefaultMutableTreeNode views = new DefaultMutableTreeNode("views", true);
+
+        top.add(tabelas);
+        top.add(views);
+
+        try {
+            DatabaseMetaData dbmd = con.getMetaData();
+            String[] tipos = {"TABLE", "VIEW"};
+            ResultSet tabelasRS = dbmd.getTables(CampoBD.getText(), null, null, tipos);
+            while (tabelasRS.next()) {
+                DefaultMutableTreeNode registro = new DefaultMutableTreeNode(tabelasRS.getString("TABLE_NAME"), false);
+                String tipo = tabelasRS.getString("TABLE_TYPE");
+                if (tipo.equals("TABLE")) {
+                    tabelas.add(registro);
+                } else if (tipo.equals("VIEW")) {
+                    views.add(registro);
+                }
+
+            }
+            tabelasRS.close();
+
+        } catch (SQLException sqle) {
+            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+        }
+
+        DefaultTreeModel modelo = new DefaultTreeModel(top);
+        ArvoreDB.setModel(modelo);
     }
 
     /**
@@ -114,6 +158,9 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         CampoSenha = new javax.swing.JPasswordField();
         jLabel6 = new javax.swing.JLabel();
         BotaoConectar = new javax.swing.JButton();
+        jSeparator1 = new javax.swing.JSeparator();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        ArvoreDB = new javax.swing.JTree();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -153,6 +200,9 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             }
         });
 
+        ArvoreDB.setModel(new DefaultTreeModel(new DefaultMutableTreeNode("BD")));
+        jScrollPane1.setViewportView(ArvoreDB);
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -160,35 +210,40 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(SelecionadorSGBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel1))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(CampoURL, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                        .addComponent(CampoPorta, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(jLabel3)
-                        .addGap(46, 46, 46)
-                        .addComponent(jLabel4)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(CampoUsuario, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel5))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel6)
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(CampoSenha, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(SelecionadorSGBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel1))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(BotaoConectar)))
-                .addGap(103, 103, 103))
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(CampoURL, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel2))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(CampoPorta, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel3)
+                                .addGap(46, 46, 46)
+                                .addComponent(jLabel4)))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(CampoUsuario, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel5))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel6)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(CampoSenha, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(BotaoConectar, javax.swing.GroupLayout.PREFERRED_SIZE, 86, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                        .addContainerGap(47, Short.MAX_VALUE))
+                    .addComponent(jSeparator1, javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 182, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(0, 0, Short.MAX_VALUE))))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -206,11 +261,15 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                     .addComponent(SelecionadorSGBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(CampoURL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(CampoPorta, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(CampoUsuario, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(CampoSenha, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(BotaoConectar))
-                .addContainerGap(419, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(jSeparator1, javax.swing.GroupLayout.PREFERRED_SIZE, 4, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 406, Short.MAX_VALUE)
+                .addContainerGap())
         );
 
         pack();
@@ -233,12 +292,13 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             String BD = CampoBD.getText();
             String usuario = CampoUsuario.getText();
             String senha = new String(CampoSenha.getPassword());
+            fecharConexao();
             con = DriverManager.getConnection("jdbc:" + driver + "://" + URL + ":" + porta + "/" + BD, usuario, senha);
             stmt = con.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-
             conectado = true;
             escreverDadosConexao();
             JOptionPane.showMessageDialog(null, "Conexão ao banco de dados estabelecida com sucesso!");
+            gerarArvore();
         } catch (SQLException sqle) {
             conectado = false;
             JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
@@ -246,16 +306,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     }//GEN-LAST:event_BotaoConectarActionPerformed
 
     private void formWindowClosed(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosed
-        try {
-            conectado = false;
-            if (!stmt.isClosed()) {
-                stmt.close();
-            }
-            if (!con.isClosed()) {
-                con.close();
-            }
-        } catch (SQLException sqle) {
-        }
+        fecharConexao();
     }//GEN-LAST:event_formWindowClosed
 
     /**
@@ -294,6 +345,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JTree ArvoreDB;
     private javax.swing.JButton BotaoConectar;
     private javax.swing.JTextField CampoBD;
     private javax.swing.JTextField CampoPorta;
@@ -307,5 +359,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JSeparator jSeparator1;
     // End of variables declaration//GEN-END:variables
 }
