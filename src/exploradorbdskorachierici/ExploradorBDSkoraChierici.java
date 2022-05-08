@@ -4,17 +4,92 @@
  */
 package exploradorbdskorachierici;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Vector;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JOptionPane;
+
 /**
  *
  * @author lucass
  */
 public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
 
+    static final String CAMINHO_ARQUIVO_CONEXAO = "dadosConexao.csv";
+    private Connection con;
+    private Statement stmt;
+    private ResultSet rs;
+
+    private boolean conectado = false;
+
+    public boolean carregarDadosConexao() {
+
+        try {
+            boolean sucesso = true;
+            FileReader arquivoConexao = new FileReader(CAMINHO_ARQUIVO_CONEXAO);
+            BufferedReader bufferConexao = new BufferedReader(arquivoConexao);
+
+            String linha = bufferConexao.readLine();
+            if (linha == null) {
+                sucesso = false;
+            } else {
+                String[] substrings = linha.split(";");
+                if (substrings.length < 5) {
+                    sucesso = false;
+                } else {
+                    SelecionadorSGBD.setSelectedItem(substrings[0]);
+                    CampoURL.setText(substrings[1]);
+                    CampoPorta.setText(substrings[2]);
+                    CampoBD.setText(substrings[3]);
+                    CampoUsuario.setText(substrings[4]);
+                }
+            }
+
+            bufferConexao.close();
+            arquivoConexao.close();
+            return sucesso;
+        } catch (FileNotFoundException e) {
+            // não é um problema, simplesmente não havia dados salvos
+        } catch (IOException ioe) {
+            JOptionPane.showMessageDialog(null, "Erro lendo arquivo de conexão: " + ioe);
+        }
+        return false;
+    }
+
+    public boolean escreverDadosConexao() {
+        try {
+            FileWriter arquivoDados = new FileWriter(CAMINHO_ARQUIVO_CONEXAO);
+            String SGBD = SelecionadorSGBD.getSelectedItem().toString();
+            String URL = CampoURL.getText();
+            String porta = CampoPorta.getText();
+            String BD = CampoBD.getText();
+            String usuario = CampoUsuario.getText();
+            arquivoDados.write(SGBD + ";" + URL + ";" + porta + ";" + BD + ";" + usuario);
+            arquivoDados.close();
+        } catch (IOException ioe) {
+            JOptionPane.showMessageDialog(null, "Erro escrevendo arquivo de conexão: " + ioe);
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Creates new form ExploradorBDSkoraChierici
      */
     public ExploradorBDSkoraChierici() {
         initComponents();
+        carregarDadosConexao();
     }
 
     /**
@@ -30,20 +105,53 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         jLabel1 = new javax.swing.JLabel();
         CampoURL = new javax.swing.JTextField();
         jLabel2 = new javax.swing.JLabel();
-        jTextField1 = new javax.swing.JTextField();
+        CampoPorta = new javax.swing.JTextField();
+        jLabel3 = new javax.swing.JLabel();
+        CampoBD = new javax.swing.JTextField();
+        jLabel4 = new javax.swing.JLabel();
+        CampoUsuario = new javax.swing.JTextField();
+        jLabel5 = new javax.swing.JLabel();
+        CampoSenha = new javax.swing.JPasswordField();
+        jLabel6 = new javax.swing.JLabel();
+        BotaoConectar = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosed(java.awt.event.WindowEvent evt) {
+                formWindowClosed(evt);
+            }
+        });
 
         SelecionadorSGBD.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "MySQL/MariaDB", "postgreSQL" }));
 
         jLabel1.setText("SGBD");
 
-        CampoURL.setColumns(20);
-        CampoURL.setText("localhost");
+        CampoURL.setColumns(15);
 
         jLabel2.setText("URL");
 
-        jTextField1.setText("jTextField1");
+        CampoPorta.setColumns(5);
+
+        jLabel3.setText("Porta");
+
+        CampoBD.setColumns(15);
+
+        jLabel4.setText("Banco de Dados");
+
+        CampoUsuario.setColumns(10);
+
+        jLabel5.setText("Usuário");
+
+        CampoSenha.setColumns(10);
+
+        jLabel6.setText("Senha");
+
+        BotaoConectar.setText("Conectar");
+        BotaoConectar.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                BotaoConectarActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -56,12 +164,31 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                     .addComponent(jLabel1))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel2)
+                    .addComponent(CampoURL, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel2))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addComponent(CampoPorta, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(CampoURL, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(jTextField1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addContainerGap(484, Short.MAX_VALUE))
+                        .addComponent(jLabel3)
+                        .addGap(46, 46, 46)
+                        .addComponent(jLabel4)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(CampoUsuario, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel5))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jLabel6)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(CampoSenha, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(BotaoConectar)))
+                .addGap(103, 103, 103))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -69,17 +196,67 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel1)
-                    .addComponent(jLabel2))
+                    .addComponent(jLabel2)
+                    .addComponent(jLabel3)
+                    .addComponent(jLabel4)
+                    .addComponent(jLabel5)
+                    .addComponent(jLabel6))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(SelecionadorSGBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(CampoURL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jTextField1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(CampoPorta, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(CampoBD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(CampoUsuario, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(CampoSenha, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(BotaoConectar))
                 .addContainerGap(419, Short.MAX_VALUE))
         );
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void BotaoConectarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_BotaoConectarActionPerformed
+        try {
+            String driver;
+            if (SelecionadorSGBD.getSelectedItem().equals("MySQL/MariaDB")) {
+                driver = "mysql";
+            } else if (SelecionadorSGBD.getSelectedItem().equals("postgreSQL")) {
+                driver = "postgresql";
+            } else {
+                conectado = false;
+                JOptionPane.showMessageDialog(null, "Driver selecionado indisponível: " + SelecionadorSGBD.getSelectedItem());
+                return;
+            }
+            String URL = CampoURL.getText();
+            String porta = CampoPorta.getText();
+            String BD = CampoBD.getText();
+            String usuario = CampoUsuario.getText();
+            String senha = new String(CampoSenha.getPassword());
+            con = DriverManager.getConnection("jdbc:" + driver + "://" + URL + ":" + porta + "/" + BD, usuario, senha);
+            stmt = con.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+
+            conectado = true;
+            escreverDadosConexao();
+            JOptionPane.showMessageDialog(null, "Conexão ao banco de dados estabelecida com sucesso!");
+        } catch (SQLException sqle) {
+            conectado = false;
+            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+        }
+    }//GEN-LAST:event_BotaoConectarActionPerformed
+
+    private void formWindowClosed(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosed
+        try {
+            conectado = false;
+            if (!stmt.isClosed()) {
+                stmt.close();
+            }
+            if (!con.isClosed()) {
+                con.close();
+            }
+        } catch (SQLException sqle) {
+        }
+    }//GEN-LAST:event_formWindowClosed
 
     /**
      * @param args the command line arguments
@@ -117,10 +294,18 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton BotaoConectar;
+    private javax.swing.JTextField CampoBD;
+    private javax.swing.JTextField CampoPorta;
+    private javax.swing.JPasswordField CampoSenha;
     private javax.swing.JTextField CampoURL;
+    private javax.swing.JTextField CampoUsuario;
     private javax.swing.JComboBox<String> SelecionadorSGBD;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
-    private javax.swing.JTextField jTextField1;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
     // End of variables declaration//GEN-END:variables
 }
