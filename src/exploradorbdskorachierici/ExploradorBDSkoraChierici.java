@@ -17,6 +17,8 @@ import java.sql.Statement;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -115,8 +117,37 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             String[] tipos = {"TABLE", "VIEW"};
             ResultSet tabelasRS = dbmd.getTables(CampoBD.getText(), null, null, tipos);
             while (tabelasRS.next()) {
-                DefaultMutableTreeNode registro = new DefaultMutableTreeNode(tabelasRS.getString("TABLE_NAME"), false);
+                String nomeRegistro = tabelasRS.getString("TABLE_NAME");
+                DefaultMutableTreeNode registro = new DefaultMutableTreeNode(nomeRegistro, true);
                 String tipo = tabelasRS.getString("TABLE_TYPE");
+                ResultSet primariasRS = dbmd.getPrimaryKeys(CampoBD.getText(), null, nomeRegistro);
+
+                Set<String> primarias = new HashSet<>();
+                while (primariasRS.next()) {
+                    primarias.add(primariasRS.getString("COLUMN_NAME"));
+                }
+                primariasRS.close();
+
+                ResultSet colunasRS = dbmd.getColumns(CampoBD.getText(), null, nomeRegistro, null);
+                while (colunasRS.next()) {
+
+                    final String nomeColuna = colunasRS.getString("COLUMN_NAME");
+                    String nome = colunasRS.getString("COLUMN_NAME") + " : " + colunasRS.getString("TYPE_NAME");
+                    final String tamanhoTipo = colunasRS.getString("CHAR_OCTET_LENGTH");
+                    if (tamanhoTipo != null) {
+                        nome += "(" + tamanhoTipo + ")";
+                    }
+                    String digitosDecimais = colunasRS.getString("DECIMAL_DIGITS");
+                    if (digitosDecimais != null) {
+                        nome += "(" + colunasRS.getString("COLUMN_SIZE") + "," + digitosDecimais + ")";
+                    }
+                    if (primarias.contains(nomeColuna)) {
+                        nome = "Primary Key: " + nome;
+                    }
+                    DefaultMutableTreeNode coluna = new DefaultMutableTreeNode(nome, false);
+                    registro.add(coluna);
+                }
+                colunasRS.close();
                 if (tipo.equals("TABLE")) {
                     tabelas.add(registro);
                 } else if (tipo.equals("VIEW")) {
@@ -127,70 +158,71 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             tabelasRS.close();
 
         } catch (SQLException sqle) {
-            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+            JOptionPane.showMessageDialog(null, "Erro buscando metadados para montar árvore: " + sqle);
         }
 
         DefaultTreeModel modelo = new DefaultTreeModel(top);
         ArvoreDB.setModel(modelo);
     }
-    
+
     private ArrayList<String> getPrimaryKeyColumns(String tableName) {
         ArrayList<String> pks = new ArrayList<>();
         try {
             DatabaseMetaData dbmd = con.getMetaData();
-            ResultSet pkrs = dbmd.getPrimaryKeys(null, null, tableName);
-            
-            while(pkrs.next()) {
+            ResultSet pkrs = dbmd.getPrimaryKeys(CampoBD.getText(), null, tableName);
+
+            while (pkrs.next()) {
                 pks.add(pkrs.getString("COLUMN_NAME"));
             }
-            
-        } catch(SQLException sqle) {
-            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+
+        } catch (SQLException sqle) {
+            JOptionPane.showMessageDialog(null, "Erro buscando chave primária da tabela " + tableName + ": " + sqle);
         }
-        
+
         return pks;
     }
-    
+
     private void gerarTabela() {
         DefaultTableModel table = new DefaultTableModel() {
             @Override
-            public boolean isCellEditable(int row, int column) {                
-                return false;               
-            };
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        ;
         };
         try {
-           ResultSetMetaData rsmd = rs.getMetaData();
-           DatabaseMetaData dbmd = con.getMetaData();
-           int columnCount = rsmd.getColumnCount();
-           for(int i = 1; i <= columnCount; ++i) {
+            ResultSetMetaData rsmd = rs.getMetaData();
+            DatabaseMetaData dbmd = con.getMetaData();
+            int columnCount = rsmd.getColumnCount();
+            for (int i = 1; i <= columnCount; ++i) {
                 ArrayList<String> pks = getPrimaryKeyColumns(rsmd.getTableName(i));
-                
-                table.addColumn(rsmd.getColumnLabel(i) + "(" 
-                    + rsmd.getColumnTypeName(i) 
-                    + (pks.contains(rsmd.getColumnLabel(i)) ? " - PK" : "")
-                    +")"
+
+                table.addColumn(rsmd.getColumnLabel(i) + "("
+                        + rsmd.getColumnTypeName(i)
+                        + (pks.contains(rsmd.getColumnLabel(i)) ? " - PK" : "")
+                        + ")"
                 );
-           }
-           while(rs.next()) {
+            }
+            while (rs.next()) {
                 Object[] row = new Object[columnCount];
-                for(int i = 0; i < columnCount; ++i) {
+                for (int i = 0; i < columnCount; ++i) {
                     row[i] = rs.getObject(i + 1);
                 }
                 table.addRow(row);
-           }
+            }
         } catch (SQLException sqle) {
-            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+            JOptionPane.showMessageDialog(null, "Erro montando tabela: " + sqle);
         }
-        
+
         TabelaRegistros.setModel(table);
     }
-    
+
     private String preparaQuery(String query) {
-        if(query.toLowerCase().contains("select") && (int)LimiteRegistros.getValue() > 0) {
+        if (query.toLowerCase().contains("select") && (int) LimiteRegistros.getValue() > 0) {
             query = query.replace(";", "").concat(" limit " + LimiteRegistros.getValue() + ";");
             System.out.println(query);
         }
-        
+
         return query;
     }
 
@@ -455,7 +487,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             gerarArvore();
         } catch (SQLException sqle) {
             conectado = false;
-            JOptionPane.showMessageDialog(null, "Erro em banco de dados: " + sqle);
+            JOptionPane.showMessageDialog(null, "Erro abrindo conexão ao banco de dados: " + sqle);
         }
     }//GEN-LAST:event_BotaoConectarActionPerformed
 
@@ -464,7 +496,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     }//GEN-LAST:event_formWindowClosed
 
     private void ExecutarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ExecutarActionPerformed
-        if(conectado) {
+        if (conectado) {
             try {
                 String query = preparaQuery(AreaQuery.getText());
                 rs = stmt.executeQuery(query);
@@ -473,13 +505,13 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                 JOptionPane.showMessageDialog(null, "Erro na query: " + sqle);
             }
         } else {
-            JOptionPane.showMessageDialog(null, "Conecte ao banco de dados antes de executar alguma query!");
+            JOptionPane.showMessageDialog(null, "Conecte-se ao banco de dados antes de executar alguma query!");
         }
     }//GEN-LAST:event_ExecutarActionPerformed
 
     private void ArvoreDBValueChanged(javax.swing.event.TreeSelectionEvent evt) {//GEN-FIRST:event_ArvoreDBValueChanged
         Object[] path = evt.getPath().getPath();
-        if(path.length == 3) {
+        if (path.length >= 3) {
             try {
                 rs = stmt.executeQuery(preparaQuery("select * from " + path[2] + ";"));
             } catch (SQLException sqle) {
