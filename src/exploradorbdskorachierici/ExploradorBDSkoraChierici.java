@@ -19,14 +19,20 @@ import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  *
- * @author lucass
+ * @author Lucas Eduardo Bonancio Skora (a1716883) 
+ *  e Gustavo Brunholi Chierici (a2126656)
  */
 public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
 
@@ -100,6 +106,8 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             if (con != null && !con.isClosed()) {
                 con.close();
             }
+            ArvoreDB.setSelectionPath(null);
+            ExecutarButton.setEnabled(false);
         } catch (SQLException sqle) {
         }
     }
@@ -133,13 +141,11 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
 
                     final String nomeColuna = colunasRS.getString("COLUMN_NAME");
                     String nome = colunasRS.getString("COLUMN_NAME") + " : " + colunasRS.getString("TYPE_NAME");
-                    final String tamanhoTipo = colunasRS.getString("CHAR_OCTET_LENGTH");
-                    if (tamanhoTipo != null) {
+                    final String tamanhoTipo = colunasRS.getString("COLUMN_SIZE");
+                    if (colunasRS.getString("DECIMAL_DIGITS") != null) {
+                        nome += "(" + colunasRS.getString("COLUMN_SIZE") + "," + colunasRS.getString("DECIMAL_DIGITS") + ")";
+                    } else if (tamanhoTipo != null) {
                         nome += "(" + tamanhoTipo + ")";
-                    }
-                    String digitosDecimais = colunasRS.getString("DECIMAL_DIGITS");
-                    if (digitosDecimais != null) {
-                        nome += "(" + colunasRS.getString("COLUMN_SIZE") + "," + digitosDecimais + ")";
                     }
                     if (primarias.contains(nomeColuna)) {
                         nome = "Primary Key: " + nome;
@@ -165,23 +171,6 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         ArvoreDB.setModel(modelo);
     }
 
-    private ArrayList<String> getPrimaryKeyColumns(String tableName) {
-        ArrayList<String> pks = new ArrayList<>();
-        try {
-            DatabaseMetaData dbmd = con.getMetaData();
-            ResultSet pkrs = dbmd.getPrimaryKeys(CampoBD.getText(), null, tableName);
-
-            while (pkrs.next()) {
-                pks.add(pkrs.getString("COLUMN_NAME"));
-            }
-
-        } catch (SQLException sqle) {
-            JOptionPane.showMessageDialog(null, "Erro buscando chave primária da tabela " + tableName + ": " + sqle);
-        }
-
-        return pks;
-    }
-
     private void gerarTabela() {
         DefaultTableModel table = new DefaultTableModel() {
             @Override
@@ -195,13 +184,15 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             DatabaseMetaData dbmd = con.getMetaData();
             int columnCount = rsmd.getColumnCount();
             for (int i = 1; i <= columnCount; ++i) {
-                ArrayList<String> pks = getPrimaryKeyColumns(rsmd.getTableName(i));
+                String nome = rsmd.getColumnLabel(i) + " : " + rsmd.getColumnTypeName(i);
+                final int digitosDecimais = rsmd.getScale(i);
+                if (digitosDecimais > 0) {
+                    nome += "(" + rsmd.getPrecision(i) + "," + digitosDecimais + ")";
+                } else if (rsmd.getColumnDisplaySize(i) > 0) {
+                    nome += "(" + rsmd.getColumnDisplaySize(i) + ")";
+                }
 
-                table.addColumn(rsmd.getColumnLabel(i) + "("
-                        + rsmd.getColumnTypeName(i)
-                        + (pks.contains(rsmd.getColumnLabel(i)) ? " - PK" : "")
-                        + ")"
-                );
+                table.addColumn(nome);
             }
             while (rs.next()) {
                 Object[] row = new Object[columnCount];
@@ -215,12 +206,12 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         }
 
         TabelaRegistros.setModel(table);
+        ExportarButton.setEnabled(true);
     }
 
     private String preparaQuery(String query) {
         if (query.toLowerCase().contains("select") && (int) LimiteRegistros.getValue() > 0) {
             query = query.replace(";", "").concat(" limit " + LimiteRegistros.getValue() + ";");
-            System.out.println(query);
         }
 
         return query;
@@ -266,9 +257,10 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         filler1 = new javax.swing.Box.Filler(new java.awt.Dimension(0, 0), new java.awt.Dimension(0, 0), new java.awt.Dimension(32767, 0));
         jScrollPane4 = new javax.swing.JScrollPane();
         TabelaRegistros = new javax.swing.JTable();
-        Executar = new javax.swing.JButton();
+        ExecutarButton = new javax.swing.JButton();
         jLabel7 = new javax.swing.JLabel();
         LimiteRegistros = new javax.swing.JSpinner();
+        ExportarButton = new javax.swing.JButton();
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -346,10 +338,11 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         ));
         jScrollPane4.setViewportView(TabelaRegistros);
 
-        Executar.setText("Executar");
-        Executar.addActionListener(new java.awt.event.ActionListener() {
+        ExecutarButton.setText("Executar");
+        ExecutarButton.setEnabled(false);
+        ExecutarButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                ExecutarActionPerformed(evt);
+                ExecutarButtonActionPerformed(evt);
             }
         });
 
@@ -357,6 +350,14 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
 
         LimiteRegistros.setToolTipText("Limite de registros para buscas. Use 0 para não limitar.");
         LimiteRegistros.setValue(1000);
+
+        ExportarButton.setText("Exportar");
+        ExportarButton.setEnabled(false);
+        ExportarButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                ExportarButtonActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -401,11 +402,13 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                         .addGap(18, 18, 18)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addComponent(Executar)
+                                .addComponent(ExecutarButton)
                                 .addGap(18, 18, 18)
                                 .addComponent(jLabel7)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                                 .addComponent(LimiteRegistros, javax.swing.GroupLayout.PREFERRED_SIZE, 87, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(ExportarButton)
                                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                             .addGroup(layout.createSequentialGroup()
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -442,9 +445,10 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(Executar)
+                            .addComponent(ExecutarButton)
                             .addComponent(jLabel7)
-                            .addComponent(LimiteRegistros, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(LimiteRegistros, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(ExportarButton))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(jScrollPane2)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -482,6 +486,7 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
             con = DriverManager.getConnection("jdbc:" + driver + "://" + URL + ":" + porta + "/" + BD, usuario, senha);
             stmt = con.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
             conectado = true;
+            ExecutarButton.setEnabled(true);
             escreverDadosConexao();
             JOptionPane.showMessageDialog(null, "Conexão ao banco de dados estabelecida com sucesso!");
             gerarArvore();
@@ -495,31 +500,100 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
         fecharConexao();
     }//GEN-LAST:event_formWindowClosed
 
-    private void ExecutarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ExecutarActionPerformed
+    private void ExecutarButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ExecutarButtonActionPerformed
         if (conectado) {
             try {
                 String query = preparaQuery(AreaQuery.getText());
-                rs = stmt.executeQuery(query);
-                gerarTabela();
+                if(query.contains("select")) {
+                    rs = stmt.executeQuery(query);
+                    gerarTabela();
+                } else {
+                    stmt.execute(query);
+                    gerarArvore();
+                }
             } catch (SQLException sqle) {
                 JOptionPane.showMessageDialog(null, "Erro na query: " + sqle);
             }
         } else {
             JOptionPane.showMessageDialog(null, "Conecte-se ao banco de dados antes de executar alguma query!");
         }
-    }//GEN-LAST:event_ExecutarActionPerformed
+    }//GEN-LAST:event_ExecutarButtonActionPerformed
 
     private void ArvoreDBValueChanged(javax.swing.event.TreeSelectionEvent evt) {//GEN-FIRST:event_ArvoreDBValueChanged
         Object[] path = evt.getPath().getPath();
-        if (path.length >= 3) {
+        if (path.length == 3) {
             try {
-                rs = stmt.executeQuery(preparaQuery("select * from " + path[2] + ";"));
+                if(stmt != null && !stmt.isClosed()) {
+                    rs = stmt.executeQuery(preparaQuery("select * from " + path[2] + ";"));
+                    gerarTabela();
+                }
             } catch (SQLException sqle) {
                 JOptionPane.showMessageDialog(null, "Erro na query: " + sqle);
             }
-            gerarTabela();
         }
     }//GEN-LAST:event_ArvoreDBValueChanged
+
+    private void ExportarButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ExportarButtonActionPerformed
+        try {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogType(JFileChooser.SAVE_DIALOG);
+            chooser.setAcceptAllFileFilterUsed(false);
+            chooser.setFileFilter(new FileNameExtensionFilter("csv", "csv"));
+            chooser.addChoosableFileFilter(new FileNameExtensionFilter("json", "json"));
+            if(chooser.showSaveDialog(null) ==  JFileChooser.APPROVE_OPTION) {
+                String filename = chooser.getSelectedFile().toString();
+                if(chooser.getFileFilter().getDescription().equals("csv")) {
+                    if(!filename.endsWith(".csv")) {
+                        filename += ".csv";
+                    }
+                    FileWriter arquivoCSV = new FileWriter(filename);
+                    TableModel dados = TabelaRegistros.getModel();
+                    
+                    for (int i = 0; i < dados.getColumnCount(); ++i) {
+                        arquivoCSV.write(dados.getColumnName(i) + ";");
+                    }
+
+                    arquivoCSV.write("\n");
+
+                    for (int i = 0; i < dados.getRowCount(); ++i) {
+                        for (int j = 0; j < dados.getColumnCount(); ++j) {
+                            arquivoCSV.write(dados.getValueAt(i, j).toString() + ";");
+                        }
+                        arquivoCSV.write("\n");
+                    }
+
+                    arquivoCSV.close();
+                } else {
+                    if(!filename.endsWith(".json")) {
+                        filename += ".json";
+                    } 
+                    
+                    JSONObject json = new JSONObject();
+                    TableModel dados = TabelaRegistros.getModel();
+                    
+                    ArrayList<String> colunas = new ArrayList<>();
+                    
+                    for (int i = 0; i < dados.getColumnCount(); ++i) {
+                        colunas.add(dados.getColumnName(i));
+                    }
+                    
+                    for(int i = 0; i < dados.getRowCount(); ++i) {
+                        JSONObject row = new JSONObject();
+                        for (int j = 0; j < dados.getColumnCount(); ++j) {
+                            row.put(colunas.get(j), dados.getValueAt(i, j).toString());
+                        }
+                        json.put(String.valueOf(i), row);
+                    }
+                    
+                    FileWriter arquivoJson = new FileWriter(filename);
+                    json.write(arquivoJson);
+                    arquivoJson.close();
+                }
+            }
+        } catch(IOException | JSONException e) {
+            JOptionPane.showMessageDialog(null, "Erro exportando arquivo de dados: " + e);
+        }
+    }//GEN-LAST:event_ExportarButtonActionPerformed
 
     /**
      * @param args the command line arguments
@@ -565,7 +639,8 @@ public class ExploradorBDSkoraChierici extends javax.swing.JFrame {
     private javax.swing.JPasswordField CampoSenha;
     private javax.swing.JTextField CampoURL;
     private javax.swing.JTextField CampoUsuario;
-    private javax.swing.JButton Executar;
+    private javax.swing.JButton ExecutarButton;
+    private javax.swing.JButton ExportarButton;
     private javax.swing.JSpinner LimiteRegistros;
     private javax.swing.JComboBox<String> SelecionadorSGBD;
     private javax.swing.JTable TabelaRegistros;
